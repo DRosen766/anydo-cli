@@ -84,6 +84,24 @@ const postForm = (hostname, path, body) => new Promise((resolve, reject) => {
   req.end()
 })
 
+const deleteRequest = (hostname, path, extraHeaders) => new Promise((resolve, reject) => {
+  const req = https.request({
+    hostname,
+    path,
+    method: 'DELETE',
+    headers: Object.assign({ 'Content-Length': 0 }, extraHeaders || {})
+  }, res => {
+    let data = ''
+    res.on('data', chunk => { data += chunk })
+    res.on('end', () => {
+      try { resolve({ status: res.statusCode, body: data ? JSON.parse(data) : null }) } catch (e) { resolve({ status: res.statusCode, body: data }) }
+    })
+    res.on('error', reject)
+  })
+  req.on('error', reject)
+  req.end()
+})
+
 const postJSON = (hostname, path, body, extraHeaders) => new Promise((resolve, reject) => {
   const bodyStr = JSON.stringify(body)
   const req = https.request({
@@ -357,28 +375,14 @@ const deleteTask = async () => {
   }
 
   const task = matches[0]
-  const now = Date.now()
 
-  const res = await postJSON('sm-prod4.any.do', '/api/v2/me/sync?updatedSince=0', {
-    models: {
-      task: {
-        items: [{
-          id: task.id,
-          globalTaskId: task.globalTaskId,
-          status: 'DELETED',
-          statusUpdateTime: now,
-          lastUpdateDate: now
-        }]
-      },
-      category: { items: [] },
-      attachment: { items: [] },
-      sharedMember: { items: [] },
-      userNotification: { items: [] },
-      taskNotification: { items: [] }
-    }
-  }, { 'X-Anydo-Auth': auth, 'X-Anydo-Platform': 'web', 'X-Platform': '3' })
+  const res = await deleteRequest(
+    'sm-prod4.any.do',
+    '/api/v2/me/tasks/' + task.id,
+    { 'X-Anydo-Auth': auth, 'X-Anydo-Platform': 'web', 'X-Platform': '3' }
+  )
 
-  if (res.status !== 200 && res.status !== 201) {
+  if (res.status !== 200 && res.status !== 204) {
     return fail('Failed to delete task (status ' + res.status + '): ' + JSON.stringify(res.body))
   }
 
