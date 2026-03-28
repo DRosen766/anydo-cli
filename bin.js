@@ -84,12 +84,16 @@ const postForm = (hostname, path, body) => new Promise((resolve, reject) => {
   req.end()
 })
 
-const deleteRequest = (hostname, path, extraHeaders) => new Promise((resolve, reject) => {
+const deleteRequest = (hostname, path, body, extraHeaders) => new Promise((resolve, reject) => {
+  const bodyStr = body ? JSON.stringify(body) : ''
   const req = https.request({
     hostname,
     path,
     method: 'DELETE',
-    headers: Object.assign({ 'Content-Length': 0 }, extraHeaders || {})
+    headers: Object.assign({
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(bodyStr)
+    }, extraHeaders || {})
   }, res => {
     let data = ''
     res.on('data', chunk => { data += chunk })
@@ -99,6 +103,7 @@ const deleteRequest = (hostname, path, extraHeaders) => new Promise((resolve, re
     res.on('error', reject)
   })
   req.on('error', reject)
+  req.write(bodyStr)
   req.end()
 })
 
@@ -377,8 +382,9 @@ const deleteTask = async () => {
   const task = matches[0]
 
   const res = await deleteRequest(
-    'sm-prod4.any.do',
-    '/api/v2/me/tasks/' + task.id,
+    'sm-prod2.any.do',
+    '/me/tasks/' + task.id,
+    task,
     { 'X-Anydo-Auth': auth, 'X-Anydo-Platform': 'web', 'X-Platform': '3' }
   )
 
