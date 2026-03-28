@@ -36,10 +36,11 @@ const cli = meow(`
 
   - List your tasks
     $ anydo [tasks]
-      --done     include done tasks
-      --deleted  include deleted tasks
-      --undated  include tasks without due date
-      --checked  include checked tasks
+      --done        include done tasks
+      --deleted     include deleted tasks
+      --undated     include tasks without due date
+      --checked     include checked tasks
+      --list "Name" filter by list name
 
   - Logout
     $ anydo logout
@@ -388,24 +389,31 @@ const logout = () => {
   config.delete('anydo.auth')
 }
 
-const tasks = () => {
+const tasks = async () => {
   const auth = config.get('anydo.auth')
   if (!auth) return fail('Please login first via the `login`, `login-google`, or `login-microsoft` command')
-  anydo.sync({
-    auth,
-    includeDone: flags.done || false,
-    includeDeleted: flags.deleted || false
-  }, (err, res) => {
-    if (err) return fail(err.message)
-    parseBody(res, (err, body) => {
-      if (err) return fail(err.message)
-      body.models.task.items
-        .filter(t => flags.undated ? true : t.dueDate)
-        .filter(t => flags.checked ? true : t.status !== 'CHECKED')
-        .map(t => '- ' + t.title)
-        .forEach(t => console.log(t))
-    })
-  })
+
+  const body = await syncData(auth)
+  const categories = body.models.category.items.filter(c => !c.isDeleted)
+
+  let categoryId
+  if (flags.list) {
+    const category = categories.find(c => c.name.toLowerCase() === flags.list.toLowerCase())
+    if (!category) {
+      const names = categories.map(c => c.name).join(', ')
+      return fail('List "' + flags.list + '" not found. Available: ' + names)
+    }
+    categoryId = category.id
+  }
+
+  body.models.task.items
+    .filter(t => flags.deleted ? true : t.status !== 'DELETED')
+    .filter(t => flags.done ? true : t.status !== 'DONE')
+    .filter(t => flags.undated ? true : t.dueDate)
+    .filter(t => flags.checked ? true : t.status !== 'CHECKED')
+    .filter(t => categoryId ? t.categoryId === categoryId : true)
+    .map(t => '- ' + t.title)
+    .forEach(t => console.log(t))
 }
 
 switch (cli.input[0]) {
@@ -415,6 +423,6 @@ switch (cli.input[0]) {
   case 'add': addTask().catch(err => fail(err.message)); break
   case 'delete': deleteTask().catch(err => fail(err.message)); break
   case 'logout': logout(); break
-  case 'tasks': tasks(); break
-  default: tasks(); break
+  case 'tasks': tasks().catch(err => fail(err.message)); break
+  default: tasks().catch(err => fail(err.message)); break
 }
