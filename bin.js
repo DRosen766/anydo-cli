@@ -31,6 +31,9 @@ const cli = meow(`
     $ anydo add "Task description"
       --list "List name"  (optional, defaults to Personal)
 
+  - Mark a task as done
+    $ anydo done "partial title"
+
   - Delete a task
     $ anydo delete "partial title"
 
@@ -360,6 +363,46 @@ const addTask = async () => {
   console.log('Added "' + title + '" to ' + category.name)
 }
 
+const doneTask = async () => {
+  const query = cli.input[1]
+  if (!query) return fail('Please provide a title to search for: anydo done "partial title"')
+
+  const auth = config.get('anydo.auth')
+  if (!auth) return fail('Please login first via the `login` or `login-microsoft` command')
+
+  const body = await syncData(auth)
+  const all = body.models.task.items.filter(t => t.status !== 'DELETED' && t.status !== 'DONE')
+  const matches = all.filter(t => t.title.toLowerCase().includes(query.toLowerCase()))
+
+  if (matches.length === 0) return fail('No tasks found matching "' + query + '"')
+
+  if (matches.length > 1) {
+    console.error('Multiple matches — be more specific:')
+    matches.forEach(t => console.error('  - ' + t.title))
+    process.exit(1)
+  }
+
+  const task = matches[0]
+  task.status = 'DONE'
+
+  const res = await postJSON('sm-prod4.any.do', '/api/v2/me/sync?updatedSince=0', {
+    models: {
+      task: { items: [task] },
+      category: { items: [] },
+      attachment: { items: [] },
+      sharedMember: { items: [] },
+      userNotification: { items: [] },
+      taskNotification: { items: [] }
+    }
+  }, { 'X-Anydo-Auth': auth, 'X-Anydo-Platform': 'web', 'X-Platform': '3' })
+
+  if (res.status !== 200 && res.status !== 201) {
+    return fail('Failed to mark task done (status ' + res.status + '): ' + JSON.stringify(res.body))
+  }
+
+  console.log('Done: "' + task.title + '"')
+}
+
 const deleteTask = async () => {
   const query = cli.input[1]
   if (!query) return fail('Please provide a title to search for: anydo delete "partial title"')
@@ -431,6 +474,7 @@ switch (cli.input[0]) {
   case 'login-google': loginGoogle().catch(err => fail(err.message)); break
   case 'login-microsoft': loginMicrosoft().catch(err => fail(err.message)); break
   case 'add': addTask().catch(err => fail(err.message)); break
+  case 'done': doneTask().catch(err => fail(err.message)); break
   case 'delete': deleteTask().catch(err => fail(err.message)); break
   case 'logout': logout(); break
   case 'tasks': tasks().catch(err => fail(err.message)); break

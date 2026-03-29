@@ -37,6 +37,7 @@ Base host for writes and OAuth: `sm-prod4.any.do`
 | `login-google` | Google OAuth device flow (requires `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` env vars) |
 | `login-microsoft` | Microsoft OAuth device flow using Any.do's Azure app ID — device flow currently blocked by Azure (AADSTS70002) |
 | `add "title"` | Create task; `--list "Name"` to specify list, defaults to Personal |
+| `done "partial title"` | Mark a task as done (partial title match, like `delete`) |
 | `tasks` / default | List tasks with due dates; flags: `--done`, `--deleted`, `--undated`, `--checked` |
 | `logout` | Clears stored auth token |
 
